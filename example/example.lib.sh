@@ -1,4 +1,4 @@
-## $Id: example.lib.sh,v 1.2 2009/10/01 15:47:25 wschlich Exp wschlich $
+## $Id: example.lib.sh,v 1.3 2010/05/13 18:16:29 wschlich Exp wschlich $
 ## vim:ts=4:sw=4:tw=200:nu:ai:nowrap:
 
 ##
@@ -122,6 +122,9 @@ function exampleFunction() {
 	## ----- main -----
 
 	__msg info "this is an example function"
+
+	__msg info "PATH: ${PATH}"
+	__msg info "umask: $(umask)"
 
 	return 0 # success
 }

@@ -1,3 +1,29 @@
+bashinator-0.5 (2010-05-13):
+
+* 2010-05-13 Wolfram Schlich <wschlich@gentoo.org>
+
+	* library: allow the user to disable using a safe PATH
+	variable by defining __ScriptUseSafePathEnv=0
+
+	* library: allow the user to set a custom umask by
+	defining __ScriptUmask=<umask>
+
+	* library: message severities can now also be specified
+	numerically (see /usr/include/sys/syslog.h and bashinator.cfg.sh)
+
+	* library: message severity prefixes are now configurable
+	by the user (see bashinator.cfg.sh
+
+	* library: allow the user to define custom signal handling
+	functions named __trap<signal> (e.g. __trapSIGHUP).
+	this way, also builtin traps can be overridden.
+	to ignore SIGINTs instead of exiting (default), just
+	define a __trapSIGINT function that does nothing:
+
+		function __trapSIGINT() { :; }
+	
+	...and you're done.
+
 bashinator-0.4 (2009-10-08):
 
 * 2009-10-08 Wolfram Schlich <wschlich@gentoo.org>

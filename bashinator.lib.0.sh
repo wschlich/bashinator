@@ -1,4 +1,4 @@
-## $Id: bashinator.lib.0.sh,v 1.7 2009/10/08 11:36:07 wschlich Exp wschlich $
+## $Id: bashinator.lib.0.sh,v 1.8 2010/05/13 18:16:08 wschlich Exp wschlich $
 ## vim:ts=4:sw=4:tw=200:nu:ai:nowrap:
 ##
 ## bashinator shell script framework library
@@ -39,6 +39,8 @@ function __boot() {
 	##
 	## GLOBAL VARIABLES USED:
 	##   __BashinatorRequiredBashVersion (default: 0.0.0)
+	##   __ScriptUseSafePathEnv (default: 1)
+	##   __ScriptUmask (default: 077)
 	##   BASH_VERSINFO
 	##   EUID
 	##   PATH
@@ -60,6 +62,7 @@ function __boot() {
 		${BASH_VERSINFO[2]}:${requiredBashPatchLevel}
 	)
 	## loop through sets of version component numbers
+	local versionSet
 	for versionSet in "${versionsToCompare[@]}"; do
 		IFS=':'
 		set -- ${versionSet}
@@ -88,18 +91,24 @@ function __boot() {
 		fi
 	done
 
-	## define safe PATH
-	export PATH="/bin:/usr/bin"
-	if [[ ${EUID} -eq 0 ]]; then
-		export PATH="/sbin:/usr/sbin:${PATH}"
+	## use a safe PATH environment variable by default
+	if [[ ${__ScriptUseSafePathEnv:-1} -eq 1 ]]; then
+		## default PATH when running as a non-root user
+		export PATH="/bin:/usr/bin"
+		## extend PATH if we are running as root
+		if [[ ${EUID} -eq 0 ]]; then
+			export PATH="/sbin:/usr/sbin:${PATH}"
+		fi
 	fi
+
+	## use a secure umask by default
+	umask ${__ScriptUmask:-077}
 
 	## basic shell settings
 	shopt -s extglob  # enable extended globbing (required for pattern matching)
 	shopt -s extdebug # enable extended debugging (required for function stack trace)
 	hash -r           # reset hashed command paths
 	set +m            # disable monitor mode (job control)
-	umask 0077        # use secure default umask
 
 	return 0 # success
 
@@ -123,12 +132,12 @@ function __dispatch() {
 	##
 
 	## check for user defined __init() function
-	if ! declare -F __init >&/dev/null; then
+	if ! declare -F __init &>/dev/null; then
 		__die 2 "function __init() does not exist, unable to dispatch application"
 	fi
 
 	## check for user defined __main() function
-	if ! declare -F __main >&/dev/null; then
+	if ! declare -F __main &>/dev/null; then
 		__die 2 "function __main() does not exist, unable to dispatch application"
 	fi
 
@@ -281,59 +290,64 @@ function __die() {
 		message="<called ${FUNCNAME[0]}() without message>"
 	fi
 
-	## number of functions involved
-	local -i numberOfFunctions=$((${#FUNCNAME[@]} - 1))
-
-	## skip this number of functions from the bottom of the call stack
-	## 1 == only skip this function itself
-	local -i skipNumberOfFunctions=1
-
 	## display main error message
 	__msg alert "FATAL: ${message}"
 
-	## display function call stack (if any functions are involved)
-	if [[ "${numberOfFunctions}" > "${skipNumberOfFunctions}" ]]; then
+	## generate stack trace
+	if [[ "${__ScriptGenerateStackTrace:-1}" -eq 1 ]]; then
 
-		__msg alert "function call stack (most recent last):"
+		## number of functions involved
+		local -i numberOfFunctions=$((${#FUNCNAME[@]} - 1))
 
-		## n: current function array pointer (initially the last element of the FUNCNAME array)
-		## p: current parameter pointer (initially the last element of the BASH_ARGV array)
-		## bashFileName: source file of previous function that called the current function
-		## bashLineNumber: line in file that called the function
-		## functionName: name of called function
-		local -i n=0 p=0 bashLineNumber=0
-		local bashFileName= functionName=
+		## skip this number of functions from the bottom of the call stack
+		## 1 == only skip this function itself
+		local -i skipNumberOfFunctions=1
 
-		for ((n = ${#FUNCNAME[@]} - 1, p = ${#BASH_ARGV[@]} - 1; n >= ${skipNumberOfFunctions}; n--)) ; do
+		## display function call stack (if any functions are involved)
+		if [[ "${numberOfFunctions}" > "${skipNumberOfFunctions}" ]]; then
 
-			bashFileName="${BASH_SOURCE[n + 1]##*/}"
-			bashLineNumber="${BASH_LINENO[n]}"
-			functionName="${FUNCNAME[n]}"
+			__msg alert "function call stack (most recent last):"
 
-			## get function arguments (bash3 only)
-			if [[ ${#BASH_ARGC[n]} -gt 0 ]]; then
-				## argList: list of quoted arguments of current function
-				## arg: next argument
-				local argList= arg=
-				## a: current function argument count pointer
-				local -i a=0
-				for ((a = 0; a < ${BASH_ARGC[n]}; ++a)); do
-					arg="${BASH_ARGV[p - a]}"
-					argList="${argList:+${argList},}'${arg}'"
-				done
-				## decrement parameter pointer by the count of parameters of the current function
-				(( p -= ${BASH_ARGC[n]} ))
-			fi
+			## n: current function array pointer (initially the last element of the FUNCNAME array)
+			## p: current parameter pointer (initially the last element of the BASH_ARGV array)
+			## bashFileName: source file of previous function that called the current function
+			## bashLineNumber: line in file that called the function
+			## functionName: name of called function
+			local -i n=0 p=0 bashLineNumber=0
+			local bashFileName= functionName=
 
-			## skip main function
-			if [[ ${FUNCNAME[n]} == "main" ]]; then
-				continue
-			fi
+			for ((n = ${#FUNCNAME[@]} - 1, p = ${#BASH_ARGV[@]} - 1; n >= ${skipNumberOfFunctions}; n--)) ; do
 
-			## print function information
-			__msg alert "--> ${functionName}(${argList:+${argList}}) called in '${bashFileName}' on line ${bashLineNumber}"
+				bashFileName="${BASH_SOURCE[n + 1]##*/}"
+				bashLineNumber="${BASH_LINENO[n]}"
+				functionName="${FUNCNAME[n]}"
 
-		done
+				## get function arguments (bash3 only)
+				if [[ ${#BASH_ARGC[n]} -gt 0 ]]; then
+					## argList: list of quoted arguments of current function
+					## arg: next argument
+					local argList= arg=
+					## a: current function argument count pointer
+					local -i a=0
+					for ((a = 0; a < ${BASH_ARGC[n]}; ++a)); do
+						arg="${BASH_ARGV[p - a]}"
+						argList="${argList:+${argList},}'${arg}'"
+					done
+					## decrement parameter pointer by the count of parameters of the current function
+					(( p -= ${BASH_ARGC[n]} ))
+				fi
+
+				## skip main function
+				if [[ ${FUNCNAME[n]} == "main" ]]; then
+					continue
+				fi
+
+				## print function information
+				__msg alert "--> ${functionName}(${argList:+${argList}}) called in '${bashFileName}' on line ${bashLineNumber}"
+
+			done
+		fi
+	
 	fi
 
 	## mention path to script subcommand log if enabled and not empty
@@ -368,17 +382,17 @@ function __msgPrint() {
 	##   4: message (req): the message to print
 	##
 	## GLOBAL VARIABLES USED:
-	##   __PrintDebug
-	##   __PrintInfo
-	##   __PrintNotice
-	##   __PrintWarning
-	##   __PrintErr
-	##   __PrintCrit
-	##   __PrintAlert
-	##   __PrintEmerg
-	##   __PrintPrefixTimestamp
-	##   __PrintPrefixSeverity
-	##   __PrintPrefixSource
+	##   __PrintDebug (default: 0)
+	##   __PrintInfo (default: 1)
+	##   __PrintNotice (default: 1)
+	##   __PrintWarning (default: 1)
+	##   __PrintErr (default: 1)
+	##   __PrintCrit (default: 1)
+	##   __PrintAlert (default: 1)
+	##   __PrintEmerg (default: 1)
+	##   __PrintPrefixTimestamp (default: 1)
+	##   __PrintPrefixSeverity (default: 1)
+	##   __PrintPrefixSource (default: 1)
 	##   TERM (used to determine if we are running inside a terminal supporting colors)
 	##
 
@@ -391,14 +405,14 @@ function __msgPrint() {
 
 	## check whether message is to be printed at all
 	case ${severity} in
-		  debug) if [[ ${__PrintDebug:-0}   -ne 1 ]]; then return 0; fi ;;
-		   info) if [[ ${__PrintInfo:-1}    -ne 1 ]]; then return 0; fi ;;
-		 notice) if [[ ${__PrintNotice:-1}  -ne 1 ]]; then return 0; fi ;;
-		warning) if [[ ${__PrintWarning:-1} -ne 1 ]]; then return 0; fi ;;
-		    err) if [[ ${__PrintErr:-1}     -ne 1 ]]; then return 0; fi ;;
-		   crit) if [[ ${__PrintCrit:-1}    -ne 1 ]]; then return 0; fi ;;
-		  alert) if [[ ${__PrintAlert:-1}   -ne 1 ]]; then return 0; fi ;;
-		  emerg) if [[ ${__PrintEmerg:-1}   -ne 1 ]]; then return 0; fi ;;
+		  debug|7) if [[ ${__PrintDebug:-0}   -ne 1 ]]; then return 0; fi ;;
+		   info|6) if [[ ${__PrintInfo:-1}    -ne 1 ]]; then return 0; fi ;;
+		 notice|5) if [[ ${__PrintNotice:-1}  -ne 1 ]]; then return 0; fi ;;
+		warning|4) if [[ ${__PrintWarning:-1} -ne 1 ]]; then return 0; fi ;;
+		    err|3) if [[ ${__PrintErr:-1}     -ne 1 ]]; then return 0; fi ;;
+		   crit|2) if [[ ${__PrintCrit:-1}    -ne 1 ]]; then return 0; fi ;;
+		  alert|1) if [[ ${__PrintAlert:-1}   -ne 1 ]]; then return 0; fi ;;
+		  emerg|0) if [[ ${__PrintEmerg:-1}   -ne 1 ]]; then return 0; fi ;;
 	esac
 
 	## determine whether we can show colors
@@ -422,14 +436,46 @@ function __msgPrint() {
 	local severityPrefix= color=
 	local -i stderr=0
 	case ${severity} in
-		  debug) let stderr=0; severityPrefix=">>> [____DEBUG]"; color="1;34"    ;; # blue on default
-		   info) let stderr=0; severityPrefix=">>> [_____INFO]"; color="1;36"    ;; # cyan on default
-		 notice) let stderr=0; severityPrefix=">>> [___NOTICE]"; color="1;32"    ;; # green on default
-		warning) let stderr=1; severityPrefix="!!! [__WARNING]"; color="1;33"    ;; # yellow on default
-		    err) let stderr=1; severityPrefix="!!! [____ERROR]"; color="1;31"    ;; # red on default
-		   crit) let stderr=1; severityPrefix="!!! [_CRITICAL]"; color="1;37;41" ;; # white on red
-		  alert) let stderr=1; severityPrefix="!!! [____ALERT]"; color="1;33;41" ;; # yellow on red
-		  emerg) let stderr=1; severityPrefix="!!! [EMERGENCY]"; color="1;37;45" ;; # white on magenta
+		debug|7)
+			severityPrefix="${__PrintPrefixSeverity7:->>> [____DEBUG]}"
+			color="1;34" # blue on default
+			let stderr=0
+			;;
+		info|6)
+			severityPrefix="${__PrintPrefixSeverity6:->>> [_____INFO]}"
+			color="1;36" # cyan on default
+			let stderr=0
+			;;
+		notice|5)
+			severityPrefix="${__PrintPrefixSeverity5:->>> [___NOTICE]}"
+			color="1;32" # green on default
+			let stderr=0
+			;;
+		warning|4)
+			severityPrefix="${__PrintPrefixSeverity4:-!!! [__WARNING]}"
+			color="1;33" # yellow on default
+			let stderr=1
+			;;
+		err|3)
+			severityPrefix="${__PrintPrefixSeverity3:-!!! [____ERROR]}"
+			color="1;31" # red on default
+			let stderr=1
+			;;
+		crit|2)
+			severityPrefix="${__PrintPrefixSeverity2:-!!! [_CRITICAL]}"
+			color="1;37;41" # white on red
+			let stderr=1
+			;;
+		alert|1)
+			severityPrefix="${__PrintPrefixSeverity1:-!!! [____ALERT]}"
+			color="1;33;41" # yellow on red
+			let stderr=1
+			;;
+		emerg|0)
+			severityPrefix="${__PrintPrefixSeverity0:-!!! [EMERGENCY]}"
+			color="1;37;45" # white on magenta
+			let stderr=1
+			;;
 	esac
 
 	##
@@ -532,17 +578,17 @@ function __msgLog() {
 	##   4: message (opt): the message to log (else stdin is read and logged)
 	##
 	## GLOBAL VARIABLES USED:
-	##   __LogDebug
-	##   __LogInfo
-	##   __LogNotice
-	##   __LogWarning
-	##   __LogErr
-	##   __LogCrit
-	##   __LogAlert
-	##   __LogEmerg
-	##   __LogPrefixTimestamp
-	##   __LogPrefixSeverity
-	##   __LogPrefixSource
+	##   __LogDebug (default: 0)
+	##   __LogInfo (default: 1)
+	##   __LogNotice (default: 1)
+	##   __LogWarning (default: 1)
+	##   __LogErr (default: 1)
+	##   __LogCrit (default: 1)
+	##   __LogAlert (default: 1)
+	##   __LogEmerg (default: 1)
+	##   __LogPrefixTimestamp (default: 1)
+	##   __LogPrefixSeverity (default: 1)
+	##   __LogPrefixSource (default: 1)
 	##   __LogTarget (fallback: syslog.user)
 	##   __LogFileHasBeenWrittenTo (helper variable)
 	##   _L
@@ -557,27 +603,27 @@ function __msgLog() {
 
 	## check whether message is to be logged at all
 	case ${severity} in
-		  debug) if [[ ${__LogDebug:-0}   -ne 1 ]]; then return 0; fi ;;
-		   info) if [[ ${__LogInfo:-1}    -ne 1 ]]; then return 0; fi ;;
-		 notice) if [[ ${__LogNotice:-1}  -ne 1 ]]; then return 0; fi ;;
-		warning) if [[ ${__LogWarning:-1} -ne 1 ]]; then return 0; fi ;;
-		    err) if [[ ${__LogErr:-1}     -ne 1 ]]; then return 0; fi ;;
-		   crit) if [[ ${__LogCrit:-1}    -ne 1 ]]; then return 0; fi ;;
-		  alert) if [[ ${__LogAlert:-1}   -ne 1 ]]; then return 0; fi ;;
-		  emerg) if [[ ${__LogEmerg:-1}   -ne 1 ]]; then return 0; fi ;;
+		  debug|7) if [[ ${__LogDebug:-0}   -ne 1 ]]; then return 0; fi ;;
+		   info|6) if [[ ${__LogInfo:-1}    -ne 1 ]]; then return 0; fi ;;
+		 notice|5) if [[ ${__LogNotice:-1}  -ne 1 ]]; then return 0; fi ;;
+		warning|4) if [[ ${__LogWarning:-1} -ne 1 ]]; then return 0; fi ;;
+		    err|3) if [[ ${__LogErr:-1}     -ne 1 ]]; then return 0; fi ;;
+		   crit|2) if [[ ${__LogCrit:-1}    -ne 1 ]]; then return 0; fi ;;
+		  alert|1) if [[ ${__LogAlert:-1}   -ne 1 ]]; then return 0; fi ;;
+		  emerg|0) if [[ ${__LogEmerg:-1}   -ne 1 ]]; then return 0; fi ;;
 	esac
 
 	## mapping severity -> severityPrefix
 	local severityPrefix
 	case ${severity} in
-		  debug) severityPrefix=">>> [____DEBUG]" ;;
-		   info) severityPrefix=">>> [_____INFO]" ;;
-		 notice) severityPrefix=">>> [___NOTICE]" ;;
-		warning) severityPrefix="!!! [__WARNING]" ;;
-		    err) severityPrefix="!!! [____ERROR]" ;;
-		   crit) severityPrefix="!!! [_CRITICAL]" ;;
-		  alert) severityPrefix="!!! [____ALERT]" ;;
-		  emerg) severityPrefix="!!! [EMERGENCY]" ;;
+		  debug|7) severityPrefix="${__LogPrefixSeverity7:->>> [____DEBUG]}" ;;
+		   info|6) severityPrefix="${__LogPrefixSeverity6:->>> [_____INFO]}" ;;
+		 notice|5) severityPrefix="${__LogPrefixSeverity5:->>> [___NOTICE]}" ;;
+		warning|4) severityPrefix="${__LogPrefixSeverity4:-!!! [__WARNING]}" ;;
+		    err|3) severityPrefix="${__LogPrefixSeverity3:-!!! [____ERROR]}" ;;
+		   crit|2) severityPrefix="${__LogPrefixSeverity2:-!!! [_CRITICAL]}" ;;
+		  alert|1) severityPrefix="${__LogPrefixSeverity1:-!!! [____ALERT]}" ;;
+		  emerg|0) severityPrefix="${__LogPrefixSeverity0:-!!! [EMERGENCY]}" ;;
 	esac
 
 	##
@@ -842,17 +888,17 @@ function __msgMail() {
 	##   /
 	##
 	## GLOBAL VARIABLES USED:
-	##   __MailDebug
-	##   __MailInfo
-	##   __MailNotice
-	##   __MailWarning
-	##   __MailErr
-	##   __MailCrit
-	##   __MailAlert
-	##   __MailEmerg
-	##   __MailPrefixTimestamp
-	##   __MailPrefixSeverity
-	##   __MailPrefixSource
+	##   __MailDebug (default: 0)
+	##   __MailInfo (default: 1)
+	##   __MailNotice (default: 1)
+	##   __MailWarning (default: 1)
+	##   __MailErr (default: 1)
+	##   __MailCrit (default: 1)
+	##   __MailAlert (default: 1)
+	##   __MailEmerg (default: 1)
+	##   __MailPrefixTimestamp (default: 1)
+	##   __MailPrefixSeverity (default: 1)
+	##   __MailPrefixSource (default: 1)
 	##   __MailFrom
 	##   __MailEnvelopeFrom
 	##   __MailRecipient
@@ -891,27 +937,27 @@ function __msgMail() {
 
 		## check whether message is to be mailed at all
 		case ${severity} in
-			  debug) if [[ ${__MailDebug:-0}   -ne 1 ]]; then continue; fi ;;
-			   info) if [[ ${__MailInfo:-1}    -ne 1 ]]; then continue; fi ;;
-			 notice) if [[ ${__MailNotice:-1}  -ne 1 ]]; then continue; fi ;;
-			warning) if [[ ${__MailWarning:-1} -ne 1 ]]; then continue; fi ;;
-			    err) if [[ ${__MailErr:-1}     -ne 1 ]]; then continue; fi ;;
-			   crit) if [[ ${__MailCrit:-1}    -ne 1 ]]; then continue; fi ;;
-			  alert) if [[ ${__MailAlert:-1}   -ne 1 ]]; then continue; fi ;;
-			  emerg) if [[ ${__MailEmerg:-1}   -ne 1 ]]; then continue; fi ;;
+			  debug|7) if [[ ${__MailDebug:-0}   -ne 1 ]]; then continue; fi ;;
+			   info|6) if [[ ${__MailInfo:-1}    -ne 1 ]]; then continue; fi ;;
+			 notice|5) if [[ ${__MailNotice:-1}  -ne 1 ]]; then continue; fi ;;
+			warning|4) if [[ ${__MailWarning:-1} -ne 1 ]]; then continue; fi ;;
+			    err|3) if [[ ${__MailErr:-1}     -ne 1 ]]; then continue; fi ;;
+			   crit|2) if [[ ${__MailCrit:-1}    -ne 1 ]]; then continue; fi ;;
+			  alert|1) if [[ ${__MailAlert:-1}   -ne 1 ]]; then continue; fi ;;
+			  emerg|0) if [[ ${__MailEmerg:-1}   -ne 1 ]]; then continue; fi ;;
 		esac
 
 		## mapping severity -> severityPrefix
 		local severityPrefix=
 		case ${severity} in
-			  debug) severityPrefix="[____DEBUG]" ;;
-			   info) severityPrefix="[_____INFO]" ;;
-			 notice) severityPrefix="[___NOTICE]" ;;
-			warning) severityPrefix="[__WARNING]" ;;
-			    err) severityPrefix="[____ERROR]" ;;
-			   crit) severityPrefix="[_CRITICAL]" ;;
-			  alert) severityPrefix="[____ALERT]" ;;
-			  emerg) severityPrefix="[EMERGENCY]" ;;
+			  debug|7) severityPrefix="${__MailPrefixSeverity7:-[____DEBUG]}" ;;
+			   info|6) severityPrefix="${__MailPrefixSeverity6:-[_____INFO]}" ;;
+			 notice|5) severityPrefix="${__MailPrefixSeverity5:-[___NOTICE]}" ;;
+			warning|4) severityPrefix="${__MailPrefixSeverity4:-[__WARNING]}" ;;
+			    err|3) severityPrefix="${__MailPrefixSeverity3:-[____ERROR]}" ;;
+			   crit|2) severityPrefix="${__MailPrefixSeverity2:-[_CRITICAL]}" ;;
+			  alert|1) severityPrefix="${__MailPrefixSeverity1:-[____ALERT]}" ;;
+			  emerg|0) severityPrefix="${__MailPrefixSeverity0:-[EMERGENCY]}" ;;
 		esac
 
 		##
@@ -1106,14 +1152,14 @@ function __trapExit() {
 	local -i returnValue=${?}
 	case ${returnValue} in
 		0)
-			__msg debug "successfully mailed saved messages"
+			__msg -q debug "successfully mailed saved messages"
 			;;
 		2)
-			__msg err "failed mailing saved messages"
+			__msg -q err "failed mailing saved messages"
 			return 2 # error
 			;;
 		*)
-			__msg err "undefined return value: ${returnValue}"
+			__msg -q err "unexpected __msgMail() return value: ${returnValue}"
 			return 2 # error
 			;;
 	esac
@@ -1148,45 +1194,36 @@ function __trapSignals() {
 
 	## ----- main -----
 
+	## check for a user-defined trap function and call it
+	if declare -F __trap${signal} &>/dev/null; then
+		__trap${signal}
+		return ${?}
+	fi
+
+	## default: generate a message and die on certain signals
+	local -i die=0
 	case ${signal} in
-		SIGHUP)
-			__msg notice "received hangup signal"
-			exit 2
-			;;
-		SIGINT)
-			__msg notice "received interrupt from keyboard"
-			exit 2
-			;;
-		SIGQUIT)
-			__msg notice "received quit from keyboard"
-			exit 2
-			;;
-		SIGABRT)
-			__msg notice "received abort signal"
-			exit 2
-			;;
-		SIGPIPE)
-			__msg notice "broken pipe"
-			exit 2
-			;;
-		SIGALRM)
-			__msg notice "received alarm signal"
-			exit 2
-			;;
-		SIGTERM)
-			__msg notice "received termination signal"
-			exit 2
-			;;
-		*)
-			__msg notice "trapped signal ${signal}"
-			;;
+		 SIGHUP) die=1; msg="received hangup signal" ;;
+		 SIGINT) die=1; msg="received interrupt from keyboard" ;;
+		SIGQUIT) die=1; msg="received quit from keyboard" ;;
+		SIGABRT) die=1; msg="received abort signal" ;;
+		SIGPIPE) die=1; msg="broken pipe" ;;
+		SIGALRM) die=1; msg="received alarm signal" ;;
+		SIGTERM) die=1; msg="received termination signal" ;;
+		      *) die=0; msg="trapped signal ${signal}" ;;
 	esac
+	if [[ ${die} -ne 0 ]]; then
+		__msg err "${msg}"
+		exit 2 # error
+	else
+		__msg notice "${msg}"
+	fi
 
 	return 0 # success
 
 } # __trapSignals()
 
-## enable the __trapSignals function for certain signals:
+## trap certain signals using __trapSignals()
 declare -a __TrapSignals=(
 	SIGHUP  # 1
 	SIGINT  # 2 (^C)
@@ -1212,7 +1249,7 @@ function __includeSource() {
 	##   source a file
 	##
 	## ARGUMENTS:
-	##   1: file: the file to include
+	##   1: file (req): the file to include
 	##
 	## GLOBAL VARIABLES USED:
 	##   _L
@@ -1243,7 +1280,7 @@ function __requireSource() {
 	##   source a file and die on failure
 	##
 	## ARGUMENTS:
-	##   1: file: the file to include
+	##   1: file (req): the file to include
 	##
 	## GLOBAL VARIABLES USED:
 	##   _L
@@ -1272,7 +1309,7 @@ function __requireCommand() {
 	##   check if a required command is found in PATH and die on failure
 	##
 	## ARGUMENTS:
-	##   1: program: the program to check for
+	##   1: command (req): the program to check for
 	##
 	## GLOBAL VARIABLES USED:
 	##   /
@@ -1287,7 +1324,7 @@ function __requireCommand() {
 
 	## ----- main -----
 
-	if ! type -P "${command}" >&/dev/null; then
+	if ! type -P "${command}" &>/dev/null; then
 		__die 2 "required command '${command}' not found in PATH"
 	fi
 
@@ -1303,17 +1340,23 @@ function __addPrefix() {
 	##   add a prefix to a line of text read from stdin
 	##
 	## ARGUMENTS:
-	##   /
+	##   *: prefix (req): the prefix to add
 	##
 	## GLOBAL VARIABLES USED:
 	##   /
 	##
 
+	local prefix=${@}
+	if [[ -z "${prefix}" ]]; then
+		__msg -q err "argument 1 (prefix) missing"
+		return 2 # error
+	fi
+	__msg -q debug "prefix: ${prefix}"
+
 	## ----- main -----
 
-	local prefix=${@}
 	prefix=${prefix//\\/\\\\} # escape \
 	prefix=${prefix//:/\\:}   # escape :
-	sed -e "s:^:${prefix}:g";
+	sed -e "s:^:${prefix}:g"
 
 } # __addPrefix()
