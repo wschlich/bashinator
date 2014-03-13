@@ -1,4 +1,4 @@
-## $Id: bashinator.cfg.sh,v 1.3 2009/05/15 14:17:16 wschlich Exp wschlich $
+## $Id: bashinator.cfg.sh,v 1.5 2009/10/08 11:36:17 wschlich Exp wschlich $
 ## vim:ts=4:sw=4:tw=200:nu:ai:nowrap:
 
 ##
@@ -17,13 +17,15 @@ export __ScriptLockDir="/tmp" # default: /var/lock
 ## enable quiet operation: nothing is printed on stdout/stderr,
 ## messages are only logged and/or mailed (if enabled).
 ## overrides __Print* variables!
-## it should be possible to enable this by passing -q to the script.
+## it should be possible to enable this by passing -q
+## as an argument to your own application script.
 #export __MsgQuiet=0 # default: 0
 
 ## timestamp format for the message functions,
 ## will be passed to date(1).
 ## default: "%Y-%m-%d %H:%M:%S %:z"
-export __MsgTimestampFormat="[%Y-%m-%d %H:%M:%S %:z]"
+export __MsgTimestampFormat="[%Y-%m-%d %H:%M:%S %:z]" # with brackets
+#export __MsgTimestampFormat="[%Y-%m-%d %H:%M:%S.%N %:z]" # with brackets and nanoseconds
 
 ## -- bashinator message printing settings --
 
@@ -37,8 +39,16 @@ export __PrintCrit=1    # default: 1
 export __PrintAlert=1   # default: 1
 export __PrintEmerg=1   # default: 1
 
-## enable/disable prefixing the message(s) to be printed with its timestamp
+## enable/disable prefixing the messages to be printed with...
+##
+## ...their timestamp
 export __PrintPrefixTimestamp=1 # default: 1
+##
+## ...their severity
+export __PrintPrefixSeverity=1 # default: 1
+##
+## ...their source (file name, line number and function name)
+export __PrintPrefixSource=1 # default: 1
 
 ## -- bashinator message logging settings --
 
@@ -52,8 +62,16 @@ export __LogCrit=1    # default: 1
 export __LogAlert=1   # default: 1
 export __LogEmerg=1   # default: 1
 
-## enable/disable prefixing the message(s) to be logged with its timestamp (ignored for syslog log target)
+## enable/disable prefixing the messages to be logged with...
+##
+## ...their timestamp (ignored for syslog log target)
 export __LogPrefixTimestamp=1 # default: 1
+##
+## ...their severity (ignored for syslog log target)
+export __LogPrefixSeverity=1 # default: 1
+##
+## ...their source (file name, line number and function name)
+export __LogPrefixSource=1 # default: 1
 
 ## log target configuration
 ## supported targets (any comma separated combination of):
@@ -82,8 +100,16 @@ export __MailCrit=1    # default: 1
 export __MailAlert=1   # default: 1
 export __MailEmerg=1   # default: 1
 
-## enable/disable prefixing the message(s) to be mailed with its timestamp
+## enable/disable prefixing the messages to be mailed with...
+##
+## ...their timestamp
 export __MailPrefixTimestamp=1 # default: 1
+##
+## ...their severity
+export __MailPrefixSeverity=1 # default: 1
+##
+## ...their source (file name, line number and function name)
+export __MailPrefixSource=1 # default: 1
 
 ## enable/disable appending the script subcommand log to the mail (if enabled)
 export __MailAppendScriptSubCommandLog=1 # default: 1

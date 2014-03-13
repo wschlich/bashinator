@@ -1,5 +1,5 @@
 #!/bin/bash
-## $Id: example.sh,v 1.5 2009/05/15 14:17:09 wschlich Exp wschlich $
+## $Id: example.sh,v 1.6 2009/10/01 15:47:34 wschlich Exp wschlich $
 ## vim:ts=4:sw=4:tw=200:nu:ai:nowrap:
 ##
 ## Created by Wolfram Schlich <wschlich@gentoo.org>

@@ -1,4 +1,4 @@
-## $Id: bashinator.lib.0.sh,v 1.5 2009/05/27 07:50:56 wschlich Exp wschlich $
+## $Id: bashinator.lib.0.sh,v 1.7 2009/10/08 11:36:07 wschlich Exp wschlich $
 ## vim:ts=4:sw=4:tw=200:nu:ai:nowrap:
 ##
 ## bashinator shell script framework library
@@ -52,12 +52,41 @@ function __boot() {
 	local -i requiredBashMinorVersion=${2}
 	local -i requiredBashPatchLevel=${3}
 	set --
-	if [[ ! ( ${BASH_VERSINFO[0]} -ge ${requiredBashMajorVersion} \
-		&& ${BASH_VERSINFO[1]} -ge ${requiredBashMinorVersion} \
-		&& ${BASH_VERSINFO[2]} -ge ${requiredBashPatchLevel} ) ]]; then
-		echo "!!! FATAL: bashinator requires at least bash version ${__BashinatorRequiredBashVersion}" 1>&2
-		exit 2 # error
-	fi
+	## create sets of version component numbers to compare
+	## one by one, starting with the major version
+	local -a versionsToCompare=(
+		${BASH_VERSINFO[0]}:${requiredBashMajorVersion}
+		${BASH_VERSINFO[1]}:${requiredBashMinorVersion}
+		${BASH_VERSINFO[2]}:${requiredBashPatchLevel}
+	)
+	## loop through sets of version component numbers
+	for versionSet in "${versionsToCompare[@]}"; do
+		IFS=':'
+		set -- ${versionSet}
+		unset IFS
+		currentVersion=${1}
+		requiredVersion=${2}
+		set --
+		## check whether current version > required version
+		if [[ ${currentVersion} -gt ${requiredVersion} ]]; then
+			## version requirements are completely satisfied,
+			## so we finish overall comparison
+			break
+		## check whether current version < required version
+		elif [[ ${currentVersion} -lt ${requiredVersion} ]]; then
+			## version requirements are not satisfied at all,
+			## so we error out
+			echo "!!! FATAL: bashinator requires at least bash version ${__BashinatorRequiredBashVersion}" 1>&2
+			exit 2 # error
+		## check whether current version == required version
+		## (this is implicitly true, it's just here for clarity)
+		elif [[ ${currentVersion} -eq ${requiredVersion} ]]; then
+			## version requirements are satisfied up to the
+			## current version number component, so we
+			## compare the next versionSet (if any)
+			continue
+		fi
+	done
 
 	## define safe PATH
 	export PATH="/bin:/usr/bin"
@@ -106,13 +135,13 @@ function __dispatch() {
 	## ----- main -----
 
 	## init application function
-	__init "${@}" || __die 2 "__init() failure"
+	__init "${@}" || __die ${?} "__init() failure"
 
 	## main application pre-processing (create lockfile and subcommand logfile)
 	__prepare || __die 2 "__prepare() failure"
 
 	## main application function
-	__main || __die 2 "__main() failure"
+	__main || __die ${?} "__main() failure"
 
 	## main application post-processing (remove lockfile and subcommand logfile)
 	__cleanup || __die 2 "__cleanup() failure"
@@ -329,11 +358,14 @@ function __msgPrint() {
 	## ----- head -----
 	##
 	## DESCRIPTION:
-	##   prints a message
+	##   prints a message.
+	##   this function is NOT intended to be called by the user!
 	##
 	## ARGUMENTS:
-	##   1: severity (req): severity of the message
-	##   2: message (req): the message to print
+	##   1: timestamp (req): timestamp of the message
+	##   2: severity (req): severity of the message
+	##   3: source (req): source of the message (file, line, function)
+	##   4: message (req): the message to print
 	##
 	## GLOBAL VARIABLES USED:
 	##   __PrintDebug
@@ -345,11 +377,14 @@ function __msgPrint() {
 	##   __PrintAlert
 	##   __PrintEmerg
 	##   __PrintPrefixTimestamp
+	##   __PrintPrefixSeverity
+	##   __PrintPrefixSource
 	##   TERM (used to determine if we are running inside a terminal supporting colors)
 	##
 
 	local timestamp="${1}"; shift
 	local severity="${1}"; shift
+	local source="${1}"; shift
 	local message="${1}"; shift
 
 	## ----- main -----
@@ -369,7 +404,7 @@ function __msgPrint() {
 	## determine whether we can show colors
 	local -i colorTerm=0
 	case "${TERM}" in
-		screen*|xterm*) let colorTerm=1 ;;
+		rxvt*|screen*|xterm*) let colorTerm=1 ;;
 		*) let colorTerm=0 ;;
 	esac
 
@@ -383,23 +418,44 @@ function __msgPrint() {
 		let colorStderr=1
 	fi
 
-	## mapping severity -> stderr/prefix/color
-	local prefix color
+	## mapping severity -> stderr/severityPrefix/color
+	local severityPrefix= color=
 	local -i stderr=0
 	case ${severity} in
-		  debug) let stderr=0; prefix=">>> [____DEBUG] "; color="1;34"    ;; # blue on default
-		   info) let stderr=0; prefix=">>> [_____INFO] "; color="1;36"    ;; # cyan on default
-		 notice) let stderr=0; prefix=">>> [___NOTICE] "; color="1;32"    ;; # green on default
-		warning) let stderr=1; prefix="!!! [__WARNING] "; color="1;33"    ;; # yellow on default
-		    err) let stderr=1; prefix="!!! [____ERROR] "; color="1;31"    ;; # red on default
-		   crit) let stderr=1; prefix="!!! [_CRITICAL] "; color="1;37;41" ;; # white on red
-		  alert) let stderr=1; prefix="!!! [____ALERT] "; color="1;33;41" ;; # yellow on red
-		  emerg) let stderr=1; prefix="!!! [EMERGENCY] "; color="1;37;45" ;; # white on magenta
+		  debug) let stderr=0; severityPrefix=">>> [____DEBUG]"; color="1;34"    ;; # blue on default
+		   info) let stderr=0; severityPrefix=">>> [_____INFO]"; color="1;36"    ;; # cyan on default
+		 notice) let stderr=0; severityPrefix=">>> [___NOTICE]"; color="1;32"    ;; # green on default
+		warning) let stderr=1; severityPrefix="!!! [__WARNING]"; color="1;33"    ;; # yellow on default
+		    err) let stderr=1; severityPrefix="!!! [____ERROR]"; color="1;31"    ;; # red on default
+		   crit) let stderr=1; severityPrefix="!!! [_CRITICAL]"; color="1;37;41" ;; # white on red
+		  alert) let stderr=1; severityPrefix="!!! [____ALERT]"; color="1;33;41" ;; # yellow on red
+		  emerg) let stderr=1; severityPrefix="!!! [EMERGENCY]"; color="1;37;45" ;; # white on magenta
 	esac
 
-	## prefix message with timestamp?
+	##
+	## final message structure in order (components can be disabled):
+	##   timestamp severityPrefix source message
+	##
+
+	local messagePrefix
+
+	## 1. prefix message with source?
+	if [[ -n ${source} ]]; then
+		case ${__PrintPrefixSource:-1} in
+			1) messagePrefix="${source}: ${messagePrefix}" ;;
+			*) ;;
+		esac
+	fi
+
+	## 2. prefix message with severity?
+	case ${__PrintPrefixSeverity:-1} in
+		1) messagePrefix="${severityPrefix} ${messagePrefix}" ;;
+		*) ;;
+	esac
+
+	## 3. prefix message with timestamp?
 	case ${__PrintPrefixTimestamp:-1} in
-		1) prefix="${timestamp} ${prefix}" ;;
+		1) messagePrefix="${timestamp} ${messagePrefix}" ;;
 		*) ;;
 	esac
 
@@ -409,20 +465,20 @@ function __msgPrint() {
 		0)
 			if [[ ${colorStdout} -eq 1 ]]; then
 					## print colored message
-					echo -e "\033[${color}m${prefix}${message}\033[m"
+					echo -e "\033[${color}m${messagePrefix}${message}\033[m"
 			else
 					## print plain message
-					echo "${prefix}${message}"
+					echo "${messagePrefix}${message}"
 			fi
 			;;
 		## print message to stderr
 		1)
 			if [[ ${colorStderr} -eq 1 ]]; then
 					## print colored message
-					echo -e "\033[${color}m${prefix}${message}\033[m" 1>&2
+					echo -e "\033[${color}m${messagePrefix}${message}\033[m" 1>&2
 			else
 					## print plain message
-					echo "${prefix}${message}" 1>&2
+					echo "${messagePrefix}${message}" 1>&2
 			fi
 			;;
 	esac
@@ -455,7 +511,7 @@ function __print() {
 	local timestamp=$(date "+${__MsgTimestampFormat:-%Y-%m-%d %H:%M:%S %:z}" 2>/dev/null)
 
 	## print message
-	__msgPrint "${timestamp}" "${severity}" "${message}"
+	__msgPrint "${timestamp}" "${severity}" "" "${message}"
 
 	return 0 # success
 
@@ -466,11 +522,14 @@ function __msgLog() {
 	## ----- head -----
 	##
 	## DESCRIPTION:
-	##   logs a message (or stdin)
+	##   logs a message (or stdin).
+	##   this function is NOT intended to be called by the user!
 	##
 	## ARGUMENTS:
-	##   1: severity (req): severity of the message
-	##   2: message (opt): the message to log (else stdin is read and logged)
+	##   1: timestamp (req): timestamp of the message
+	##   2: severity (req): severity of the message
+	##   3: source (req): source of the message (file, line, function)
+	##   4: message (opt): the message to log (else stdin is read and logged)
 	##
 	## GLOBAL VARIABLES USED:
 	##   __LogDebug
@@ -482,6 +541,8 @@ function __msgLog() {
 	##   __LogAlert
 	##   __LogEmerg
 	##   __LogPrefixTimestamp
+	##   __LogPrefixSeverity
+	##   __LogPrefixSource
 	##   __LogTarget (fallback: syslog.user)
 	##   __LogFileHasBeenWrittenTo (helper variable)
 	##   _L
@@ -489,6 +550,7 @@ function __msgLog() {
 
 	local timestamp="${1}"; shift
 	local severity="${1}"; shift
+	local source="${1}"; shift
 	local message="${1}"; shift
 
 	## ----- main -----
@@ -505,22 +567,45 @@ function __msgLog() {
 		  emerg) if [[ ${__LogEmerg:-1}   -ne 1 ]]; then return 0; fi ;;
 	esac
 
-	## mapping severity -> prefix
-	local prefix
+	## mapping severity -> severityPrefix
+	local severityPrefix
 	case ${severity} in
-		  debug) prefix=">>> [____DEBUG] " ;;
-		   info) prefix=">>> [_____INFO] " ;;
-		 notice) prefix=">>> [___NOTICE] " ;;
-		warning) prefix="!!! [__WARNING] " ;;
-		    err) prefix="!!! [____ERROR] " ;;
-		   crit) prefix="!!! [_CRITICAL] " ;;
-		  alert) prefix="!!! [____ALERT] " ;;
-		  emerg) prefix="!!! [EMERGENCY] " ;;
+		  debug) severityPrefix=">>> [____DEBUG]" ;;
+		   info) severityPrefix=">>> [_____INFO]" ;;
+		 notice) severityPrefix=">>> [___NOTICE]" ;;
+		warning) severityPrefix="!!! [__WARNING]" ;;
+		    err) severityPrefix="!!! [____ERROR]" ;;
+		   crit) severityPrefix="!!! [_CRITICAL]" ;;
+		  alert) severityPrefix="!!! [____ALERT]" ;;
+		  emerg) severityPrefix="!!! [EMERGENCY]" ;;
 	esac
 
-	## prefix message with timestamp?
+	##
+	## final message structure in order (components can be disabled):
+	##   timestamp severityPrefix source message
+	##
+
+	## we have to use different prefixes for file and syslog targets)
+	local fileTargetMessagePrefix syslogTargetMessagePrefix
+
+	## 1. prefix message with source? (for file and syslog targets)
+	if [[ -n ${source} ]]; then
+		case ${__LogPrefixSource:-1} in
+			1) fileTargetMessagePrefix="${source}: ${fileTargetMessagePrefix}"
+			   syslogTargetMessagePrefix="${source}: ${syslogTargetMessagePrefix}" ;;
+			*) ;;
+		esac
+	fi
+
+	## 2. prefix message with severity? (for file target only)
+	case ${__LogPrefixSeverity:-1} in
+		1) fileTargetMessagePrefix="${severityPrefix} ${fileTargetMessagePrefix}" ;;
+		*) ;;
+	esac
+
+	## 3. prefix message with timestamp? (for file target only)
 	case ${__LogPrefixTimestamp:-1} in
-		1) prefix="${timestamp} ${prefix}" ;;
+		1) fileTargetMessagePrefix="${timestamp} ${fileTargetMessagePrefix}" ;;
 		*) ;;
 	esac
 
@@ -528,7 +613,7 @@ function __msgLog() {
 	IFS=','
 	local -a logTargetArray=( ${__LogTarget:-syslog:user} )
 	unset IFS
-	local -i l
+	local -i l=0
 	for ((l = 0; l < ${#logTargetArray[@]}; l++)); do
 		local logTarget=${logTargetArray[l]}
 		case ${logTarget} in
@@ -547,20 +632,18 @@ function __msgLog() {
 				if [[ -z ${message} ]]; then
 					if [[ ${logMode} == 'append' || ${__LogFileHasBeenWrittenTo} -eq 1 ]]; then
 						## TODO FIXME: check return value?
-						#cat >>${logFile} 2>>"${_L:-/dev/null}"
-						sed -e "s/^/${prefix} /" >>${logFile} 2>>"${_L:-/dev/null}"
+						sed -e "s/^/${fileTargetMessagePrefix}/" >>${logFile} 2>>"${_L:-/dev/null}"
 					else
 						## TODO FIXME: check return value?
-						#cat >${logFile} 2>>"${_L:-/dev/null}"
-						sed -e "s/^/${prefix} /" >${logFile} 2>>"${_L:-/dev/null}"
+						sed -e "s/^/${fileTargetMessagePrefix}/" >${logFile} 2>>"${_L:-/dev/null}"
 					fi
 				else
 					if [[ ${logMode} == 'append' || ${__LogFileHasBeenWrittenTo} -eq 1 ]]; then
 						## TODO FIXME: check return value?
-						echo "${prefix}${message}" >>${logFile} 2>>"${_L:-/dev/null}"
+						echo "${fileTargetMessagePrefix}${message}" >>${logFile} 2>>"${_L:-/dev/null}"
 					else
 						## TODO FIXME: check return value?
-						echo "${prefix}${message}" >${logFile} 2>>"${_L:-/dev/null}"
+						echo "${fileTargetMessagePrefix}${message}" >${logFile} 2>>"${_L:-/dev/null}"
 					fi
 				fi
 				## global helper variable to determine if logfile
@@ -585,7 +668,7 @@ function __msgLog() {
 					logger -p "${syslogPri}" -t "${syslogTag}" >>"${_L:-/dev/null}" 2>&1
 				else
 					## log passed message
-					logger -p "${syslogPri}" -t "${syslogTag}" -- "${message}" >>"${_L:-/dev/null}" 2>&1
+					logger -p "${syslogPri}" -t "${syslogTag}" -- "${syslogTargetMessagePrefix}${message}" >>"${_L:-/dev/null}" 2>&1
 				fi
 				;;
 			## any other (invalid) log target
@@ -604,7 +687,7 @@ function __log() {
 	## ----- head -----
 	##
 	## DESCRIPTION:
-	##   logs a message (or stdin)
+	##   logs a message (or stdin).
 	##
 	## ARGUMENTS:
 	##   1: severity (req): severity of the message
@@ -623,7 +706,7 @@ function __log() {
 	local timestamp=$(date "+${__MsgTimestampFormat:-%Y-%m-%d %H:%M:%S %:z}" 2>/dev/null)
 
 	## log message
-	__msgLog "${timestamp}" "${severity}" "${message}"
+	__msgLog "${timestamp}" "${severity}" "" "${message}"
 
 	return 0 # success
 
@@ -634,7 +717,7 @@ function __msg() {
 	## ----- head -----
 	##
 	## DESCRIPTION:
-	##   processes a message (or stdin) for logging/printing/later mailing
+	##   processes a message (or stdin) for logging/printing/later mailing.
 	##
 	## ARGUMENTS:
 	##   0: -q (opt): quiet (do not print message, required for print functions)
@@ -647,10 +730,10 @@ function __msg() {
 	##   __MsgTimestampFormat
 	##
 
+	local quiet=0
 	if [[ ${1} == "-q" ]]; then
 		let quiet=1; shift
 	fi
-
 	local severity="${1}"; shift
 	local message="${1}"; shift
 
@@ -668,8 +751,8 @@ function __msg() {
 	## of the current script file and the
 	## calling function
 	local callingFunction=
-	local -i bashLineNumber=
-	local bashFile=
+	local -i bashLineNumber=0
+	local bashFileName=
 	case "${FUNCNAME[1]}" in
 		## we were called by __die()
 		__die)
@@ -688,26 +771,26 @@ function __msg() {
 	esac
 	bashFileName=${bashFileName##*/} # strip leading path
 
-	## build message prefix based on calling function
-	local messagePrefix=
+	## build message source string based on calling function
+	local source=
 	case "${callingFunction}" in
 		## main execution/no function
 		main)
-			messagePrefix="{${bashFileName}:${bashLineNumber}}: "
+			source="{${bashFileName}:${bashLineNumber}}"
 			;;
 		## __die function
 		#__die)
-		#	messagePrefix="{${bashFileName}:${bashLineNumber}}, ${callingFunction}(): "
+		#	source="{${bashFileName}:${bashLineNumber}}, ${callingFunction}()"
 		#	;;
 		## we were called by any other function
 		*)
 			## use the calling function as message prefix
-			messagePrefix="{${bashFileName}:${bashLineNumber}}, ${callingFunction}(): "
+			source="{${bashFileName}:${bashLineNumber}}, ${callingFunction}()"
 			;;
 	esac
 
 	## populate local messsage array
-	local -a messageArray
+	local -a messageArray=()
 	if [[ -z ${message} ]]; then
 		## no message argument given, so read stdin
 		## and append every line to the message array
@@ -716,7 +799,7 @@ function __msg() {
 		done
 	else
 		## single message argument
-		messageArray=( "${messagePrefix}${message}" )
+		messageArray=( "${message}" )
 	fi
 
 	## loop through local message array
@@ -724,28 +807,188 @@ function __msg() {
 	## - add message to global message array
 	## - print message
 	## - log message
-	local -i m
+	local -i m=0
 	for ((m = 0; m < ${#messageArray[@]}; m++)); do
 
 		## current message
 		local currentMessage=${messageArray[m]}
 
 		## append current message to the global message array
-		__MsgArray+=( "${timestamp}|${severity}|${currentMessage}" )
+		__MsgArray+=( "${timestamp}|${severity}|${source}|${currentMessage}" )
 
 		## only print current message if quiet operation isn't enabled
 		if [[ ${quiet} -ne 1 ]]; then
-			__msgPrint "${timestamp}" "${severity}" "${currentMessage}"
+			__msgPrint "${timestamp}" "${severity}" "${source}" "${currentMessage}"
 		fi
 
 		## log current message
-		__msgLog "${timestamp}" "${severity}" "${currentMessage}"
+		__msgLog "${timestamp}" "${severity}" "${source}" "${currentMessage}"
 
 	done
 
 	return 0 # success
 
 } # __msg()
+
+function __msgMail() {
+
+	## ----- head -----
+	##
+	## DESCRIPTION:
+	##   sends all saved messages (and script subcommand log, if enabled) via mail
+	##   this function is NOT intended to be called by the user!
+	##
+	## ARGUMENTS:
+	##   /
+	##
+	## GLOBAL VARIABLES USED:
+	##   __MailDebug
+	##   __MailInfo
+	##   __MailNotice
+	##   __MailWarning
+	##   __MailErr
+	##   __MailCrit
+	##   __MailAlert
+	##   __MailEmerg
+	##   __MailPrefixTimestamp
+	##   __MailPrefixSeverity
+	##   __MailPrefixSource
+	##   __MailFrom
+	##   __MailEnvelopeFrom
+	##   __MailRecipient
+	##   __MailSubject
+	##   __MsgArray
+	##   __ScriptFile
+	##   __ScriptHost
+	##
+
+	local mailFrom=${__MailFrom:-${USER} <${USER}@${__ScriptHost}>}
+	local mailEnvelopeFrom=${__MailEnvelopeFrom:-${USER}@${__ScriptHost}}
+	local mailRecipient=${__MailRecipient:-${USER}@${__ScriptHost}}
+	local mailSubject=${__MailSubject:-Messages from ${__ScriptFile} running on ${__ScriptHost}}
+
+	## ----- main -----
+
+	## check whether the global message array contains any messages at all
+	if [[ ${#__MsgArray[@]} -eq 0 ]]; then
+		return 0
+	fi
+
+	## initialize mail message array
+	local -a mailMessageArray=()
+
+	## loop through global message array
+	local -i i=0
+	for ((i = 0; i < ${#__MsgArray[@]}; i++)); do
+		IFS='|'
+		set -- ${__MsgArray[i]}
+		unset IFS
+		local timestamp=${1}; shift
+		local severity=${1}; shift
+		local source=${1}; shift
+		local message=${@}
+		set --
+
+		## check whether message is to be mailed at all
+		case ${severity} in
+			  debug) if [[ ${__MailDebug:-0}   -ne 1 ]]; then continue; fi ;;
+			   info) if [[ ${__MailInfo:-1}    -ne 1 ]]; then continue; fi ;;
+			 notice) if [[ ${__MailNotice:-1}  -ne 1 ]]; then continue; fi ;;
+			warning) if [[ ${__MailWarning:-1} -ne 1 ]]; then continue; fi ;;
+			    err) if [[ ${__MailErr:-1}     -ne 1 ]]; then continue; fi ;;
+			   crit) if [[ ${__MailCrit:-1}    -ne 1 ]]; then continue; fi ;;
+			  alert) if [[ ${__MailAlert:-1}   -ne 1 ]]; then continue; fi ;;
+			  emerg) if [[ ${__MailEmerg:-1}   -ne 1 ]]; then continue; fi ;;
+		esac
+
+		## mapping severity -> severityPrefix
+		local severityPrefix=
+		case ${severity} in
+			  debug) severityPrefix="[____DEBUG]" ;;
+			   info) severityPrefix="[_____INFO]" ;;
+			 notice) severityPrefix="[___NOTICE]" ;;
+			warning) severityPrefix="[__WARNING]" ;;
+			    err) severityPrefix="[____ERROR]" ;;
+			   crit) severityPrefix="[_CRITICAL]" ;;
+			  alert) severityPrefix="[____ALERT]" ;;
+			  emerg) severityPrefix="[EMERGENCY]" ;;
+		esac
+
+		##
+		## final message structure in order (components can be disabled):
+		##   timestamp severityPrefix source message
+		##
+
+		local messagePrefix=
+
+		## 1. prefix message with source?
+		if [[ -n ${source} ]]; then
+			case ${__MailPrefixSource:-1} in
+				1) messagePrefix="${source}: ${messagePrefix}" ;;
+				*) ;;
+			esac
+		fi
+
+		## 2. prefix message with severity?
+		case ${__MailPrefixSeverity:-1} in
+			1) messagePrefix="${severityPrefix} ${messagePrefix}" ;;
+			*) ;;
+		esac
+
+		## 3. prefix message with timestamp?
+		case ${__MailPrefixTimestamp:-1} in
+			1) messagePrefix="${timestamp} ${messagePrefix}" ;;
+			*) ;;
+		esac
+
+		## push final message into array
+		mailMessageArray+=( "${messagePrefix}${message}" )
+	done
+
+	## check whether the mail message array contains any messages at all
+	if [[ ${#mailMessageArray[@]} -eq 0 ]]; then
+		return 0
+	fi
+
+	## send mail
+	{
+		## print all messages that are to be mailed
+		for ((i = 0; i < ${#mailMessageArray[@]}; i++)); do
+			echo "${mailMessageArray[i]}"
+		done
+		## append script subcommand log?
+		if [[ ${__MailAppendScriptSubCommandLog:-1} -eq 1 \
+			&& ${__ScriptSubCommandLog:-0} -eq 1 \
+			&& ${__ScriptSubCommandLogFile} != /dev/null \
+			&& -s ${__ScriptSubCommandLogFile} ]]; then
+			echo
+			echo "--8<--[ start of script subcommand log (${__ScriptSubCommandLogFile}) ]--8<--"
+			cat "${__ScriptSubCommandLogFile}" 2>/dev/null
+			echo "--8<--[ end of script subcommand log ]--8<--"
+		fi
+	} | __mail \
+		"${mailFrom}" \
+		"${mailEnvelopeFrom}" \
+		"${mailRecipient}" \
+		"${mailSubject}"
+	local -i returnValue=${?}
+	case ${returnValue} in
+		0)
+			__msg debug "successfully sent mail"
+			;;
+		2)
+			__msg err "failed sending mail"
+			return 2 # error
+			;;
+		*)
+			__msg err "undefined return value: ${returnValue}"
+			return 2 # error
+			;;
+	esac
+
+	return 0 # success
+
+} # __msgMail()
 
 function __mail() {
 
@@ -801,7 +1044,7 @@ function __mail() {
 	local timestamp=$(date "+%Y-%m-%d %H:%M:%S" 2>/dev/null)
 
 	## read stdin and append every line to the body array
-	local -a mailBodyArray
+	local -a mailBodyArray=()
 	while read; do
 		mailBodyArray+=( "${REPLY}" )
 	done
@@ -815,7 +1058,7 @@ function __mail() {
 		echo "To: ${mailRecipient}"
 		echo "Subject: ${mailSubject}"
 		echo
-		local -i i
+		local -i i=0
 		for ((i = 0; i < ${#mailBodyArray[@]}; i++)); do
 			echo "${mailBodyArray[i]}"
 		done
@@ -837,141 +1080,6 @@ function __mail() {
 	return 0 # success
 
 } # __mail()
-
-function __msgMail() {
-
-	## ----- head -----
-	##
-	## DESCRIPTION:
-	##   sends all saved messages (and script subcommand log, if enabled) via mail
-	##
-	## ARGUMENTS:
-	##   /
-	##
-	## GLOBAL VARIABLES USED:
-	##   __MailDebug
-	##   __MailInfo
-	##   __MailNotice
-	##   __MailWarning
-	##   __MailErr
-	##   __MailCrit
-	##   __MailAlert
-	##   __MailEmerg
-	##   __MailPrefixTimestamp
-	##   __MailFrom
-	##   __MailEnvelopeFrom
-	##   __MailRecipient
-	##   __MailSubject
-	##   __MsgArray
-	##   __ScriptFile
-	##   __ScriptHost
-	##
-
-	local mailFrom=${__MailFrom:-${USER} <${USER}@${__ScriptHost}>}
-	local mailEnvelopeFrom=${__MailEnvelopeFrom:-${USER}@${__ScriptHost}}
-	local mailRecipient=${__MailRecipient:-${USER}@${__ScriptHost}}
-	local mailSubject=${__MailSubject:-Messages from ${__ScriptFile} running on ${__ScriptHost}}
-
-	## ----- main -----
-
-	## check whether the global message array contains any messages at all
-	if [[ ${#__MsgArray[@]} -eq 0 ]]; then
-		return 0
-	fi
-
-	## initialize mail message array
-	local -a mailMessageArray
-
-	## loop through global message array
-	local -i i=0
-	for ((i = 0; i < ${#__MsgArray[@]}; i++)); do
-		IFS='|'
-		set -- ${__MsgArray[i]}
-		unset IFS
-		local timestamp=${1}; shift
-		local severity=${1}; shift
-		local message=${@}
-		set --
-
-		## check whether message is to be mailed at all
-		case ${severity} in
-			  debug) if [[ ${__MailDebug:-0}   -ne 1 ]]; then continue; fi ;;
-			   info) if [[ ${__MailInfo:-1}    -ne 1 ]]; then continue; fi ;;
-			 notice) if [[ ${__MailNotice:-1}  -ne 1 ]]; then continue; fi ;;
-			warning) if [[ ${__MailWarning:-1} -ne 1 ]]; then continue; fi ;;
-			    err) if [[ ${__MailErr:-1}     -ne 1 ]]; then continue; fi ;;
-			   crit) if [[ ${__MailCrit:-1}    -ne 1 ]]; then continue; fi ;;
-			  alert) if [[ ${__MailAlert:-1}   -ne 1 ]]; then continue; fi ;;
-			  emerg) if [[ ${__MailEmerg:-1}   -ne 1 ]]; then continue; fi ;;
-		esac
-
-		## mapping severity -> prefix
-		local prefix
-		case ${severity} in
-			  debug) prefix="[____DEBUG] " ;;
-			   info) prefix="[_____INFO] " ;;
-			 notice) prefix="[___NOTICE] " ;;
-			warning) prefix="[__WARNING] " ;;
-			    err) prefix="[____ERROR] " ;;
-			   crit) prefix="[_CRITICAL] " ;;
-			  alert) prefix="[____ALERT] " ;;
-			  emerg) prefix="[EMERGENCY] " ;;
-		esac
-
-		## prefix message with timestamp?
-		case ${__MailPrefixTimestamp:-1} in
-			1) prefix="${timestamp} ${prefix}" ;;
-			*) ;;
-		esac
-
-		## push final message into array
-		mailMessageArray+=( "${prefix}${message}" )
-	done
-
-	## check whether the mail message array contains any messages at all
-	if [[ ${#mailMessageArray[@]} -eq 0 ]]; then
-		return 0
-	fi
-
-	## send mail
-	{
-		## print all messages that are to be mailed
-		for ((i = 0; i < ${#mailMessageArray[@]}; i++)); do
-			echo "${mailMessageArray[i]}"
-		done
-		## append script subcommand log?
-		if [[ ${__MailAppendScriptSubCommandLog:-1} -eq 1 \
-			&& ${__ScriptSubCommandLog:-0} -eq 1 \
-			&& ${__ScriptSubCommandLogFile} != /dev/null \
-			&& -s ${__ScriptSubCommandLogFile} ]]; then
-			echo
-			echo "--8<--[ start of script subcommand log (${__ScriptSubCommandLogFile}) ]--8<--"
-			cat "${__ScriptSubCommandLogFile}" 2>/dev/null
-			echo "--8<--[ end of script subcommand log ]--8<--"
-		fi
-	} | __mail \
-		"${mailFrom}" \
-		"${mailEnvelopeFrom}" \
-		"${mailRecipient}" \
-		"${mailSubject}"
-	local -i returnValue=${?}
-	case ${returnValue} in
-		0)
-			__msg debug "successfully sent mail"
-			;;
-		2)
-			__msg err "failed sending mail"
-			return 2 # error
-			;;
-		*)
-			__msg err "undefined return value: ${returnValue}"
-			return 2 # error
-			;;
-	esac
-
-	return 0 # success
-
-} # __msgMail()
 
 ##
 ## trap functions
@@ -1005,7 +1113,7 @@ function __trapExit() {
 			return 2 # error
 			;;
 		*)
-			__msg err "undefined return value: ${returnValue}" ##
+			__msg err "undefined return value: ${returnValue}"
 			return 2 # error
 			;;
 	esac
@@ -1111,6 +1219,10 @@ function __includeSource() {
 	##
 
 	local file=${1}
+	if [[ -z "${file}" ]]; then
+		__msg err "argument 1 (file) missing"
+		return 2 # error
+	fi
 
 	## ----- main -----
 
@@ -1138,6 +1250,9 @@ function __requireSource() {
 	##
 
 	local file=${1}
+	if [[ -z "${file}" ]]; then
+		__die 2 "argument 1 (file) missing"
+	fi
 
 	## ----- main -----
 
@@ -1148,6 +1263,37 @@ function __requireSource() {
 	return 0 # success
 
 } # __requireSource()
+
+function __requireCommand() {
+
+	## ----- head -----
+	##
+	## DESCRIPTION:
+	##   check if a required command is found in PATH and die on failure
+	##
+	## ARGUMENTS:
+	##   1: program: the program to check for
+	##
+	## GLOBAL VARIABLES USED:
+	##   /
+	##
+
+	local command=${1}
+	if [[ -z "${command}" ]]; then
+		__msg err "argument 1 (command) missing"
+		return 2 # error
+	fi
+	__msg debug "command: ${command}"
+
+	## ----- main -----
+
+	if ! type -P "${command}" >&/dev/null; then
+		__die 2 "required command '${command}' not found in PATH"
+	fi
+
+	return 0 # success
+
+} # __requireCommand()
 
 function __addPrefix() {
 
@@ -1165,6 +1311,9 @@ function __addPrefix() {
 
 	## ----- main -----
 
-	sed -e "s/^/[${@}] /"
+	local prefix=${@}
+	prefix=${prefix//\\/\\\\} # escape \
+	prefix=${prefix//:/\\:}   # escape :
+	sed -e "s:^:${prefix}:g";
 
 } # __addPrefix()
