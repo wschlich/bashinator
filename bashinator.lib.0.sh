@@ -55,8 +55,8 @@ function __boot() {
 	if [[ ! ( ${BASH_VERSINFO[0]} -ge ${requiredBashMajorVersion} \
 		&& ${BASH_VERSINFO[1]} -ge ${requiredBashMinorVersion} \
 		&& ${BASH_VERSINFO[2]} -ge ${requiredBashPatchLevel} ) ]]; then
-		echo "!!! FATAL: bashinator requires at least bash version ${__BashinatorRequiredBashVersion}"
-		return 2 # error
+		echo "!!! FATAL: bashinator requires at least bash version ${__BashinatorRequiredBashVersion}" 1>&2
+		exit 2 # error
 	fi
 
 	## define safe PATH

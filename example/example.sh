@@ -43,7 +43,7 @@ fi
 ## boot bashinator
 ##
 
-__boot || exit 2
+__boot
 
 ##
 ## application library and config
@@ -64,4 +64,4 @@ __requireSource "${ApplicationLibrary}"
 ## dispatch the application with all command line arguments
 ##
 
-__dispatch "${@}" || exit 2
+__dispatch "${@}"
