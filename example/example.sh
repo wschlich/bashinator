@@ -25,10 +25,10 @@ export __ScriptHost=$(hostname -f) # host.example.com
 ##
 
 ## system installation
-#export __BashinatorConfig="/etc/${__ScriptName}/bashinator.cfg.sh"
+export __BashinatorConfig="/etc/${__ScriptName}/bashinator.cfg.sh"
 export __BashinatorLibrary="/usr/lib/bashinator.lib.0.sh" # APIv0
 ## local installation in dedicated script path
-export __BashinatorConfig="${__ScriptPath}/bashinator.cfg.sh"
+#export __BashinatorConfig="${__ScriptPath}/bashinator.cfg.sh"
 #export __BashinatorLibrary="${__ScriptPath}/bashinator.lib.0.sh" # APIv0
 if ! source "${__BashinatorConfig}"; then
     echo "!!! FATAL: failed to source bashinator config '${__BashinatorConfig}'" 1>&2
@@ -40,29 +40,25 @@ if ! source "${__BashinatorLibrary}"; then
 fi
 
 ##
-## application library and config
-##
-
-## system installation
-#export ApplicationConfig="/etc/${__ScriptName}/${__ScriptName}.cfg.sh"
-#export ApplicationLibrary="/usr/lib/${__ScriptName}.lib.sh"
-## local installation in dedicated script path
-export ApplicationConfig="${__ScriptPath}/${__ScriptName}.cfg.sh"
-export ApplicationLibrary="${__ScriptPath}/${__ScriptName}.lib.sh"
-if ! source "${ApplicationConfig}"; then
-    echo "!!! FATAL: failed to source application config '${ApplicationConfig}'" 1>&2
-    exit 2
-fi
-if ! source "${ApplicationLibrary}"; then
-    echo "!!! FATAL: failed to source application library '${ApplicationLibrary}'" 1>&2
-    exit 2
-fi
-
-##
 ## boot bashinator
 ##
 
 __boot || exit 2
+
+##
+## application library and config
+##
+
+## system installation
+export ApplicationConfig="/etc/${__ScriptName}/${__ScriptName}.cfg.sh"
+export ApplicationLibrary="/usr/lib/${__ScriptName}.lib.sh"
+## local installation in dedicated script path
+#export ApplicationConfig="${__ScriptPath}/${__ScriptName}.cfg.sh"
+#export ApplicationLibrary="${__ScriptPath}/${__ScriptName}.lib.sh"
+
+## include required source files
+__requireSource "${ApplicationConfig}"
+__requireSource "${ApplicationLibrary}"
 
 ##
 ## dispatch the application with all command line arguments

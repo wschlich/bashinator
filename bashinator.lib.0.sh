@@ -1096,6 +1096,59 @@ done
 ## misc helper functions
 ##
 
+function __includeSource() {
+
+	## ----- head -----
+	##
+	## DESCRIPTION:
+	##   source a file
+	##
+	## ARGUMENTS:
+	##   1: file: the file to include
+	##
+	## GLOBAL VARIABLES USED:
+	##   _L
+	##
+
+	local file=${1}
+
+	## ----- main -----
+
+	if ! source "${file}" >>"${_L:-/dev/null}" 2>&1; then
+		__msg crit "failed to include source file '${file}'"
+		return 2 # error
+	fi
+
+	return 0 # success
+
+} # __includeSource()
+
+function __requireSource() {
+
+	## ----- head -----
+	##
+	## DESCRIPTION:
+	##   source a file and die on failure
+	##
+	## ARGUMENTS:
+	##   1: file: the file to include
+	##
+	## GLOBAL VARIABLES USED:
+	##   _L
+	##
+
+	local file=${1}
+
+	## ----- main -----
+
+	if ! source "${file}" >>"${_L:-/dev/null}" 2>&1; then
+		__die 2 "failed to include required source file '${file}'"
+	fi
+
+	return 0 # success
+
+} # __requireSource()
+
 function __addPrefix() {
 
 	## ----- head -----
