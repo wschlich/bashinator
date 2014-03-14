@@ -1,4 +1,3 @@
-## $Id: example.lib.sh,v 1.3 2010/05/13 18:16:29 wschlich Exp wschlich $
 ## vim:ts=4:sw=4:tw=200:nu:ai:nowrap:
 
 ##

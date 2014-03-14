@@ -1,3 +1,34 @@
+bashinator-0.6 (2014-04-14):
+
+* 2014-03-14 Wolfram Schlich <wschlich@gentoo.org>
+
+	* library: add comment with a list of global variables used
+
+	* library: rename global variable Exit to __ScriptExitCode
+	while still supporting the old name for backwards compatibility
+
+	* __die(): add (optional) global variable __DieExitCode
+	for customizing the default exit code used by __die()
+
+	* __die(): remove the hardcoded "FATAL:" message prefix
+
+	* __msgPrint(): add comments about prefixes and colors
+	for the various severities
+
+	* __msgLog(): add comments about prefixes for the various severities
+
+	* __msgMail(): add comments about prefixes for the various severities
+
+	* bashinator.cfg.sh: add __ScriptGenerateStackTrace
+	global variable with default value of 0
+
+	* bashinator.cfg.sh: add more comments
+
+	* example.sh: fix default variant to system installation
+	instead of local installation
+
+	* all files: removed obsolete RCS headers
+
 bashinator-0.5 (2010-05-13):
 
 * 2010-05-13 Wolfram Schlich <wschlich@gentoo.org>
@@ -40,7 +71,7 @@ bashinator-0.4 (2009-10-08):
 	__MailPrefixSource
 	NOTE: manually printed/logged/mailed messages do not get
 	their source recorded.
-	* __msgPrint: added rxvt as terminal supporting color
+	* __msgPrint(): added rxvt as terminal supporting color
 	* __addPrefix(): improve reliability by escaping certain characters
 	* __addPrefix(): do NOT automatically add any characters to the prefix
 	* __dispatch(): on __init() and __main() failure (return value != 0),

@@ -1,4 +1,3 @@
-## $Id: bashinator.lib.0.sh,v 1.8 2010/05/13 18:16:08 wschlich Exp wschlich $
 ## vim:ts=4:sw=4:tw=200:nu:ai:nowrap:
 ##
 ## bashinator shell script framework library
@@ -18,6 +17,139 @@
 ## - date
 ## - sendmail (default /usr/sbin/sendmail, can be overridden with __SendmailBin)
 ##
+
+##
+## GLOBAL VARIABLES
+## ======================================
+## D: defined by bashinator
+## u: used by bashinator if defined
+## --------------------------------------
+##
+## D: __BashinatorRequiredBashVersion
+##
+## u: __DieExitCode
+## u: __ScriptExitCode
+## u: __ScriptDieExitCode
+##
+## u: __ScriptFile
+## u: __ScriptPath
+## u: __ScriptName
+## u: __ScriptHost
+## u: __ScriptLock
+## D: __ScriptLockFile
+## u: __ScriptLockDir
+## u: __ScriptSubCommandLog
+## D: __ScriptSubCommandLogFile + _L
+## u: __ScriptSubCommandLogDir
+## u: __ScriptUseSafePathEnv
+## u: __ScriptUmask
+##
+## D: __MsgArray
+## u: __MsgQuiet
+## u: __MsgTimestampFormat
+##
+## u: __PrintDebug
+## u: __PrintInfo
+## u: __PrintNotice
+## u: __PrintWarning
+## u: __PrintErr
+## u: __PrintCrit
+## u: __PrintAlert
+## u: __PrintEmerg
+## u: __PrintPrefixTimestamp
+## u: __PrintPrefixSeverity
+## u: __PrintPrefixSource
+## u: __PrintPrefixSeverity7
+## u: __PrintPrefixSeverity6
+## u: __PrintPrefixSeverity5
+## u: __PrintPrefixSeverity4
+## u: __PrintPrefixSeverity3
+## u: __PrintPrefixSeverity2
+## u: __PrintPrefixSeverity1
+## u: __PrintPrefixSeverity0
+## u: __PrintColorSeverity7
+## u: __PrintColorSeverity6
+## u: __PrintColorSeverity5
+## u: __PrintColorSeverity4
+## u: __PrintColorSeverity3
+## u: __PrintColorSeverity2
+## u: __PrintColorSeverity1
+## u: __PrintColorSeverity0
+##
+## u: __LogDebug
+## u: __LogInfo
+## u: __LogNotice
+## u: __LogWarning
+## u: __LogErr
+## u: __LogCrit
+## u: __LogAlert
+## u: __LogEmerg
+## u: __LogPrefixTimestamp
+## u: __LogPrefixSeverity
+## u: __LogPrefixSource
+## u: __LogPrefixSeverity7
+## u: __LogPrefixSeverity6
+## u: __LogPrefixSeverity5
+## u: __LogPrefixSeverity4
+## u: __LogPrefixSeverity3
+## u: __LogPrefixSeverity2
+## u: __LogPrefixSeverity1
+## u: __LogPrefixSeverity0
+## u: __LogColorSeverity7
+## u: __LogColorSeverity6
+## u: __LogColorSeverity5
+## u: __LogColorSeverity4
+## u: __LogColorSeverity3
+## u: __LogColorSeverity2
+## u: __LogColorSeverity1
+## u: __LogColorSeverity0
+## u: __LogTarget
+## D: __LogFileHasBeenWrittenTo
+##
+## u: __MailDebug
+## u: __MailInfo
+## u: __MailNotice
+## u: __MailWarning
+## u: __MailErr
+## u: __MailCrit
+## u: __MailAlert
+## u: __MailEmerg
+## u: __MailPrefixTimestamp
+## u: __MailPrefixSeverity
+## u: __MailPrefixSource
+## u: __MailPrefixSeverity7
+## u: __MailPrefixSeverity6
+## u: __MailPrefixSeverity5
+## u: __MailPrefixSeverity4
+## u: __MailPrefixSeverity3
+## u: __MailPrefixSeverity2
+## u: __MailPrefixSeverity1
+## u: __MailPrefixSeverity0
+## u: __MailColorSeverity7
+## u: __MailColorSeverity6
+## u: __MailColorSeverity5
+## u: __MailColorSeverity4
+## u: __MailColorSeverity3
+## u: __MailColorSeverity2
+## u: __MailColorSeverity1
+## u: __MailColorSeverity0
+## u: __MailFrom
+## u: __MailEnvelopeFrom
+## u: __MailRecipient
+## u: __MailSubject
+##
+## u: __SendmailBin
+## u: __SendmailArgs
+##
+## D: __TrapSignals
+##
+## u: BASH_VERSINFO
+## u: EUID
+## D: PATH
+## u: TERM
+## u: USER
+##
+
 
 ## define the required minimum bash version for this
 ## bashinator release to function properly
@@ -127,18 +259,18 @@ function __dispatch() {
 	##   *: all arguments of the originally executed script
 	##
 	## GLOBAL VARIABLES USED:
-	##   Exit: can be set to a custom exit code from within
+	##   __ScriptExitCode: can be set to a custom exit code from within
 	##   the user functions
 	##
 
 	## check for user defined __init() function
 	if ! declare -F __init &>/dev/null; then
-		__die 2 "function __init() does not exist, unable to dispatch application"
+		__die ${__DieExitCode:-2} "function __init() does not exist, unable to dispatch application"
 	fi
 
 	## check for user defined __main() function
 	if ! declare -F __main &>/dev/null; then
-		__die 2 "function __main() does not exist, unable to dispatch application"
+		__die ${__DieExitCode:-2} "function __main() does not exist, unable to dispatch application"
 	fi
 
 	## ----- main -----
@@ -147,15 +279,21 @@ function __dispatch() {
 	__init "${@}" || __die ${?} "__init() failure"
 
 	## main application pre-processing (create lockfile and subcommand logfile)
-	__prepare || __die 2 "__prepare() failure"
+	__prepare || __die ${__DieExitCode:-2} "__prepare() failure"
 
 	## main application function
 	__main || __die ${?} "__main() failure"
 
 	## main application post-processing (remove lockfile and subcommand logfile)
-	__cleanup || __die 2 "__cleanup() failure"
+	__cleanup || __die ${__DieExitCode:-2} "__cleanup() failure"
 
-	exit ${Exit:-0}
+	## backwards compatibility for user specified exit code
+	if [[ -n "${Exit}" ]]; then
+		exit ${Exit}
+	fi
+
+	## exit script with optional user specified exit code
+	exit ${__ScriptExitCode:-0}
 
 } # __dispatch()
 
@@ -268,7 +406,7 @@ function __die() {
 	##   terminate the currently executing script
 	##
 	## ARGUMENTS:
-	##   1: exit code (req, default: 1)
+	##   1: exit code (opt, default: 1)
 	##   2: message (opt): the message explaining the termination
 	##
 	## GLOBAL VARIABLES USED:
@@ -291,7 +429,7 @@ function __die() {
 	fi
 
 	## display main error message
-	__msg alert "FATAL: ${message}"
+	__msg alert "${message}"
 
 	## generate stack trace
 	if [[ "${__ScriptGenerateStackTrace:-1}" -eq 1 ]]; then
@@ -393,6 +531,22 @@ function __msgPrint() {
 	##   __PrintPrefixTimestamp (default: 1)
 	##   __PrintPrefixSeverity (default: 1)
 	##   __PrintPrefixSource (default: 1)
+	##   __PrintPrefixSeverity7 (default: >>> [____DEBUG])
+	##   __PrintPrefixSeverity6 (default: >>> [_____INFO])
+	##   __PrintPrefixSeverity5 (default: >>> [___NOTICE])
+	##   __PrintPrefixSeverity4 (default: !!! [__WARNING])
+	##   __PrintPrefixSeverity3 (default: !!! [____ERROR])
+	##   __PrintPrefixSeverity2 (default: !!! [_CRITICAL])
+	##   __PrintPrefixSeverity1 (default: !!! [____ALERT])
+	##   __PrintPrefixSeverity0 (default: !!! [EMERGENCY])
+	##   __PrintColorSeverity7 (default: 1;34)
+	##   __PrintColorSeverity6 (default: 1;36)
+	##   __PrintColorSeverity5 (default: 1;32)
+	##   __PrintColorSeverity4 (default: 1;33)
+	##   __PrintColorSeverity3 (default: 1;31)
+	##   __PrintColorSeverity2 (default: 1;37;41)
+	##   __PrintColorSeverity1 (default: 1;33;41)
+	##   __PrintColorSeverity0 (default: 1;37;45)
 	##   TERM (used to determine if we are running inside a terminal supporting colors)
 	##
 
@@ -589,6 +743,14 @@ function __msgLog() {
 	##   __LogPrefixTimestamp (default: 1)
 	##   __LogPrefixSeverity (default: 1)
 	##   __LogPrefixSource (default: 1)
+	##   __LogPrefixSeverity7 (default: >>> [____DEBUG])
+	##   __LogPrefixSeverity6 (default: >>> [_____INFO])
+	##   __LogPrefixSeverity5 (default: >>> [___NOTICE])
+	##   __LogPrefixSeverity4 (default: !!! [__WARNING])
+	##   __LogPrefixSeverity3 (default: !!! [____ERROR])
+	##   __LogPrefixSeverity2 (default: !!! [_CRITICAL])
+	##   __LogPrefixSeverity1 (default: !!! [____ALERT])
+	##   __LogPrefixSeverity0 (default: !!! [EMERGENCY])
 	##   __LogTarget (fallback: syslog.user)
 	##   __LogFileHasBeenWrittenTo (helper variable)
 	##   _L
@@ -899,6 +1061,14 @@ function __msgMail() {
 	##   __MailPrefixTimestamp (default: 1)
 	##   __MailPrefixSeverity (default: 1)
 	##   __MailPrefixSource (default: 1)
+	##   __MailPrefixSeverity7 (default: [____DEBUG])
+	##   __MailPrefixSeverity6 (default: [_____INFO])
+	##   __MailPrefixSeverity5 (default: [___NOTICE])
+	##   __MailPrefixSeverity4 (default: [__WARNING])
+	##   __MailPrefixSeverity3 (default: [____ERROR])
+	##   __MailPrefixSeverity2 (default: [_CRITICAL])
+	##   __MailPrefixSeverity1 (default: [____ALERT])
+	##   __MailPrefixSeverity0 (default: [EMERGENCY])
 	##   __MailFrom
 	##   __MailEnvelopeFrom
 	##   __MailRecipient
@@ -1288,13 +1458,13 @@ function __requireSource() {
 
 	local file=${1}
 	if [[ -z "${file}" ]]; then
-		__die 2 "argument 1 (file) missing"
+		__die ${__DieExitCode:-2} "argument 1 (file) missing"
 	fi
 
 	## ----- main -----
 
 	if ! source "${file}" >>"${_L:-/dev/null}" 2>&1; then
-		__die 2 "failed to include required source file '${file}'"
+		__die ${__DieExitCode:-2} "failed to include required source file '${file}'"
 	fi
 
 	return 0 # success
@@ -1325,7 +1495,7 @@ function __requireCommand() {
 	## ----- main -----
 
 	if ! type -P "${command}" &>/dev/null; then
-		__die 2 "required command '${command}' not found in PATH"
+		__die ${__DieExitCode:-2} "required command '${command}' not found in PATH"
 	fi
 
 	return 0 # success
