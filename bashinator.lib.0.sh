@@ -4,6 +4,9 @@
 ##
 ## Created by Wolfram Schlich <wschlich@gentoo.org>
 ## Licensed under the GNU GPLv3
+## Web: http://www.bashinator.org/
+## Code: https://github.com/wschlich/bashinator/
+##
 
 ##
 ## REQUIRED PROGRAMS

@@ -1,3 +1,10 @@
+* 2014-03-17 Wolfram Schlich <wschlich@gentoo.org>
+
+	* all files: extend comments
+
+	* example.sh: add more inline documentation, make libraries + configs
+	  user-overridable with environment variables by default
+
 bashinator-0.6 (2014-04-14):
 
 * 2014-03-14 Wolfram Schlich <wschlich@gentoo.org>
