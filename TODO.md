@@ -2,8 +2,8 @@
 
 * documentation
   * add lots of docs ;)
-  * explain __dispatch()/__main()/__init() (and alternative usage of bashinator without them)
-    * also explain __prepare()/__cleanup
+  * explain __dispatch(), __main() and __init() functions (and alternative usage of bashinator without them)
+    * also explain __prepare() and __cleanup() functions
 
 * new features
   * implement more basic helper functions, like ltrim/rtrim/trim
