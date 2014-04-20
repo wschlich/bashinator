@@ -1,4 +1,4 @@
-## vim:ts=4:sw=4:tw=200:nu:ai:nowrap:
+### vim:ts=4:sw=4:tw=200:nu:ai:nowrap:
 ##
 ## application config for bashinator example application
 ##

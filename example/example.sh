@@ -33,15 +33,15 @@ export __ScriptHost=$(hostname -f) # evaluates to the current hostname, e.g. hos
 ## system installation of bashinator (and application):
 ##
 ## /etc/example/bashinator.cfg.sh
-## /usr/share/bashinator/bashinator.lib.0.sh
+## /usr/lib/bashinator.lib.0.sh
 ##
-## accepting overrides using user-defined environment variables:
+## accepting overrides[1] using user-defined environment variables:
 export __BashinatorConfig="${__BashinatorConfig:-/etc/${__ScriptName}/bashinator.cfg.sh}"
-export __BashinatorLibrary="${__BashinatorLibrary:-/usr/share/bashinator/bashinator.lib.0.sh}" # APIv0
+export __BashinatorLibrary="${__BashinatorLibrary:-/usr/lib/bashinator.lib.0.sh}" # APIv0
 ##
 ## not accepting overrides (for security reasons):
 #export __BashinatorConfig="/etc/${__ScriptName}/bashinator.cfg.sh"
-#export __BashinatorLibrary="/usr/share/bashinator/bashinator.lib.0.sh" # bashinator API v0
+#export __BashinatorLibrary="/usr/lib/bashinator.lib.0.sh" # bashinator API v0
 
 ## local installation of bashinator and application in dedicated script path:
 ##
@@ -78,15 +78,15 @@ __boot
 ## system installation of application config and library
 ##
 ## /etc/example/example.cfg.sh
-## /usr/share/example/example.lib.sh
+## /etc/example/example.lib.sh
 ##
-## accepting overrides using user-defined environment variables:
+## accepting overrides[1] using user-defined environment variables:
 export ApplicationConfig="${ApplicationConfig:-/etc/${__ScriptName}/${__ScriptName}.cfg.sh}"
-export ApplicationLibrary="${ApplicationLibrary:-/usr/share/${__ScriptName}/${__ScriptName}.lib.sh}"
+export ApplicationLibrary="${ApplicationLibrary:-/usr/lib/${__ScriptName}.lib.sh}"
 ##
 ## not accepting overrides (for security reasons)
 #export ApplicationConfig="/etc/${__ScriptName}/${__ScriptName}.cfg.sh"
-#export ApplicationLibrary="/usr/share/${__ScriptName}/${__ScriptName}.lib.sh"
+#export ApplicationLibrary="/usr/lib/${__ScriptName}.lib.sh"
 
 ## local installation of application config and library in dedicated script path:
 ##
