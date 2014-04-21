@@ -35,7 +35,7 @@ export __ScriptHost=$(hostname -f) # evaluates to the current hostname, e.g. hos
 ## /etc/example/bashinator.cfg.sh
 ## /usr/share/bashinator/bashinator.lib.0.sh
 ##
-## accepting overrides[1] using user-defined environment variables:
+## accepting overrides using user-defined environment variables:
 export __BashinatorConfig="${__BashinatorConfig:-/etc/${__ScriptName}/bashinator.cfg.sh}"
 export __BashinatorLibrary="${__BashinatorLibrary:-/usr/share/bashinator/bashinator.lib.0.sh}" # APIv0
 ##
@@ -80,7 +80,7 @@ __boot
 ## /etc/example/example.cfg.sh
 ## /usr/share/example/example.lib.sh
 ##
-## accepting overrides[1] using user-defined environment variables:
+## accepting overrides using user-defined environment variables:
 export ApplicationConfig="${ApplicationConfig:-/etc/${__ScriptName}/${__ScriptName}.cfg.sh}"
 export ApplicationLibrary="${ApplicationLibrary:-/usr/share/${__ScriptName}/${__ScriptName}.lib.sh}"
 ##
