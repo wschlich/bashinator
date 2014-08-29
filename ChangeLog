@@ -1,3 +1,13 @@
+* 2014-08-29 Wolfram Schlich <wschlich@gentoo.org>
+
+	* bashinator.lib.0.sh: add a default value for a possibly missing __ScriptName
+
+	* bashinator.lib.0.sh, bashinator.cfg.sh: add new configuration variables
+	for prefixing messages with the script name + PID:
+	__PrintPrefixScriptNamePid
+	__LogPrefixScriptNamePid
+	__MailPrefixScriptNamePid
+
 * 2014-03-17 Wolfram Schlich <wschlich@gentoo.org>
 
 	* all files: extend comments

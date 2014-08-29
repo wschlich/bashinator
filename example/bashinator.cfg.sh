@@ -77,6 +77,9 @@ export __PrintDebug=1   # default: 0
 
 ## enable/disable prefixing the messages to be printed with...
 ##
+## ...their script name + pid
+#export __PrintPrefixScriptNamePid=0 # default: 1
+##
 ## ...their timestamp
 #export __PrintPrefixTimestamp=0 # default: 1
 ##
@@ -119,6 +122,9 @@ export __LogDebug=1   # default: 0
 #export __LogEmerg=0   # default: 1
 
 ## enable/disable prefixing the messages to be logged with...
+##
+## ...their script name + pid (ignored for syslog log target)
+#export __LogPrefixScriptNamePid=0 # default: 1
 ##
 ## ...their timestamp (ignored for syslog log target)
 #export __LogPrefixTimestamp=0 # default: 1
@@ -167,6 +173,9 @@ export __MailDebug=1   # default: 0
 #export __MailEmerg=0   # default: 1
 
 ## enable/disable prefixing the messages to be mailed with...
+##
+## ...their script name + pid
+#export __MailPrefixScriptNamePid=1 # default: 0
 ##
 ## ...their timestamp
 #export __MailPrefixTimestamp=0 # default: 1

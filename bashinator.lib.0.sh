@@ -322,7 +322,7 @@ function __prepare() {
 	## handle script subcommand logfile
 	if [[ ${__ScriptSubCommandLog:-0} == 1 ]]; then
 		## create temporary logfile
-		__ScriptSubCommandLogFile=$(mktemp -q -t -p "${__ScriptSubCommandLogDir:-/var/log}" ${__ScriptName}.log.XXXXXX)
+		__ScriptSubCommandLogFile=$(mktemp -q -t -p "${__ScriptSubCommandLogDir:-/var/log}" ${__ScriptName:-${0##*/}}.log.XXXXXX)
 		if [[ -z "${__ScriptSubCommandLogFile}" ]]; then
 			__msg alert "failed to create temporary script subcommand logfile in script logdir '${__ScriptSubCommandLogDir:-/var/log}'"
 			return 2 # error
@@ -339,7 +339,7 @@ function __prepare() {
 
 	## handle script lockfile
 	if [[ ${__ScriptLock:-0} == 1 ]]; then
-		__ScriptLockFile="${__ScriptLockDir:-/var/lock}/${__ScriptName}.lock"
+		__ScriptLockFile="${__ScriptLockDir:-/var/lock}/${__ScriptName:-${0##*/}}.lock"
 		## check/create lockfile
 		if [[ -e "${__ScriptLockFile}" ]]; then
 			__msg alert "script lockfile '${__ScriptLockFile}' already exists"
@@ -531,6 +531,7 @@ function __msgPrint() {
 	##   __PrintCrit (default: 1)
 	##   __PrintAlert (default: 1)
 	##   __PrintEmerg (default: 1)
+	##   __PrintPrefixScriptNamePid (default: 1)
 	##   __PrintPrefixTimestamp (default: 1)
 	##   __PrintPrefixSeverity (default: 1)
 	##   __PrintPrefixSource (default: 1)
@@ -662,6 +663,12 @@ function __msgPrint() {
 		*) ;;
 	esac
 
+	## 4. prefix message with script name + pid?
+	case ${__PrintPrefixScriptNamePid:-1} in
+		1) messagePrefix="${__ScriptName:-${0##*/}}[${$}] ${messagePrefix}" ;;
+		*) ;;
+	esac
+
 	## print message
 	case ${stderr} in
 		## print message to stdout
@@ -743,6 +750,7 @@ function __msgLog() {
 	##   __LogCrit (default: 1)
 	##   __LogAlert (default: 1)
 	##   __LogEmerg (default: 1)
+	##   __LogPrefixScriptNamePid (default: 1)
 	##   __LogPrefixTimestamp (default: 1)
 	##   __LogPrefixSeverity (default: 1)
 	##   __LogPrefixSource (default: 1)
@@ -820,6 +828,12 @@ function __msgLog() {
 		*) ;;
 	esac
 
+	## 4. prefix message with script name + pid? (for file target only)
+	case ${__LogPrefixScriptNamePid:-1} in
+		1) fileTargetMessagePrefix="${__ScriptName:-${0##*/}}[${$}] ${fileTargetmessagePrefix}" ;;
+		*) ;;
+	esac
+
 	## loop through list of log targets
 	IFS=','
 	local -a logTargetArray=( ${__LogTarget:-syslog:user} )
@@ -871,7 +885,7 @@ function __msgLog() {
 				unset IFS
 				local syslogFacility=${2:-user}
 				local syslogPri="${syslogFacility}.${severity}"
-				local syslogTag="${0##*/}[${$}]" # scriptname[PID]
+				local syslogTag="${__ScriptName:-${0##*/}}[${$}]" # scriptname[PID]
 				set --
 				## send log message to syslog
 				if [[ -z ${message} ]]; then
@@ -1061,6 +1075,7 @@ function __msgMail() {
 	##   __MailCrit (default: 1)
 	##   __MailAlert (default: 1)
 	##   __MailEmerg (default: 1)
+	##   __MailPrefixScriptNamePid (default: 0)
 	##   __MailPrefixTimestamp (default: 1)
 	##   __MailPrefixSeverity (default: 1)
 	##   __MailPrefixSource (default: 1)
@@ -1157,6 +1172,12 @@ function __msgMail() {
 		## 3. prefix message with timestamp?
 		case ${__MailPrefixTimestamp:-1} in
 			1) messagePrefix="${timestamp} ${messagePrefix}" ;;
+			*) ;;
+		esac
+
+		## 4. prefix message with script name + pid?
+		case ${__MailPrefixScriptNamePid:-1} in
+			1) messagePrefix="${__ScriptName:-${0##*/}}[${$}] ${messagePrefix}" ;;
 			*) ;;
 		esac
 
