@@ -830,7 +830,7 @@ function __msgLog() {
 
 	## 4. prefix message with script name + pid? (for file target only)
 	case ${__LogPrefixScriptNamePid:-1} in
-		1) fileTargetMessagePrefix="${__ScriptName:-${0##*/}}[${$}] ${fileTargetmessagePrefix}" ;;
+		1) fileTargetMessagePrefix="${__ScriptName:-${0##*/}}[${$}] ${fileTargetMessagePrefix}" ;;
 		*) ;;
 	esac
 
