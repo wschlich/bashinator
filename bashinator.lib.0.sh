@@ -153,6 +153,11 @@
 ## u: USER
 ##
 
+## basic shell settings (must not be placed in a conditional context)
+shopt -s extglob  # enable extended globbing (required for pattern matching)
+shopt -s extdebug # enable extended debugging (required for function stack trace)
+hash -r           # reset hashed command paths
+set +m            # disable monitor mode (job control)
 
 ## define the required minimum bash version for this
 ## bashinator release to function properly
@@ -238,12 +243,6 @@ function __boot() {
 
 	## use a secure umask by default
 	umask ${__ScriptUmask:-077}
-
-	## basic shell settings
-	shopt -s extglob  # enable extended globbing (required for pattern matching)
-	shopt -s extdebug # enable extended debugging (required for function stack trace)
-	hash -r           # reset hashed command paths
-	set +m            # disable monitor mode (job control)
 
 	return 0 # success
 
